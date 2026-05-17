@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Courses</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  min-width: 300px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.modal-box p { font-size: 16px; margin-bottom: 24px; color: #333; }
+.modal-buttons { display: flex; gap: 12px; justify-content: center; }
+.modal-btn-cancel {
+  padding: 10px 28px; border-radius: 10px;
+  border: 1.5px solid #ccc; background: #fff;
+  color: #555; font-size: 15px; cursor: pointer;
+}
+.modal-btn-confirm {
+  padding: 10px 28px; border-radius: 10px;
+  border: none; background: #e74c3c;
+  color: #fff; font-size: 15px; cursor: pointer;
+}
+.modal-btn-cancel:hover { background: #f5f5f5; }
+.modal-btn-confirm:hover { background: #c0392b; }
+</style>
+</head>
+
+<body onload="loadUserProfile();">
+
+<div class="sidebar">
+  <h2>Study Planner</h2>
+  <a href="dashboard.html">Dashboard</a>
+  <a href="courses.html" class="active">Courses</a>
+  <a href="deadlines.html">Deadlines</a>
+<a href="availability.html">Weekly Plan</a>
+  <a href="statistics.html">Statistics</a>
+  <a href="index.html">Log out</a>
+</div>
+
+<div class="main">
+  <h1>📚 Courses</h1>
+<div class="top-user">
+  <span id="userNameDisplay"></span>
+<img id="userAvatar" class="user-avatar" src="female.png" alt="User">
+</div>
+
+  <div class="course-stats">
+    <div class="stat-box">
+      <div class="number" id="totalCourses">0</div>
+      <div class="label">Total Courses</div>
+    </div>
+    <div class="stat-box">
+      <div class="number" id="totalHours">0h</div>
+      <div class="label">Total Hours</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="add-form">
+      <input type="text" id="courseName" placeholder="📖 Course Name">
+      <input type="number" id="hours" placeholder="⏰ Credit Hours" min="1">
+      <button onclick="addCourse()">+ Add Course</button>
+    </div>
+
+    <table id="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Course Name</th>
+          <th>Credit Hours</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="emptyMsg" class="empty-hidden">
+  <span>📚</span>
+  <p>No courses added yet. Start by adding your first course!</p>
+</div>
+  </div>
+</div>
+
+<script>
+
+
+let courses = []; 
+
+// ==========================================
+// 1. دوال الإشعارات والتحقق من التكرار (كانت مفقودة)
+// ==========================================
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.classList.add("show"); }, 100);
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => { toast.remove(); }, 300);
+  }, 3000);
+}
+
+function isDuplicate(name, excludeId = null) {
+  return courses.some(c => {
+    const courseName = c.title || c.name;
+    const courseId = c._id || c.id;
+    return courseName.toLowerCase() === name.toLowerCase() && courseId !== excludeId;
+  });
+}
+
+// ==========================================
+// 2. جلب المقررات من قاعدة البيانات
+// ==========================================
+async function fetchCourses() {
+  const token = localStorage.getItem("token");
+  if (!token) return; 
+
+  try {
+    const response = await fetch('http://localhost:3000/api/courses', {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (response.ok) {
+      courses = await response.json(); 
+      render(); 
+    }
+  } catch (err) {
+    console.error("Error fetching courses:", err);
+  }
+}
+
+// ==========================================
+// 3. إضافة مقرر جديد
+// ==========================================
+// ==========================================
+// 3. إضافة مقرر جديد (محدثة لتطابق سيرفرك)
+// ==========================================
+async function addCourse() {
+  const name = document.getElementById("courseName").value.trim();
+  const hours = parseInt(document.getElementById("hours").value);
+
+  if (!name || isNaN(hours) || hours <= 0) {
+    showToast("Please enter valid course name and hours", "error");
+    return;
+  }
+
+  if (isDuplicate(name)) {
+    showToast("This course already exists!", "error");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+  if (!token) {
+    showToast("Reason: No token - Please login via Backend first", "error");
+    return;
+  }
+
+  try {
+    const response = await fetch('http://localhost:3000/api/courses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      // 💡 التعديل هنا: أرسلنا name و hours كما يطلبها سيرفرك بالضبط
+      body: JSON.stringify({ name: name, hours: hours }) 
+    });
+
+    if (response.ok) {
+      showToast("Course added successfully", "success");
+      document.getElementById("courseName").value = "";
+      document.getElementById("hours").value = "";
+      fetchCourses(); 
+    } else {
+      const errorData = await response.json();
+      showToast("Reason: " + (errorData.error || errorData.message), "error");
+    }
+  } catch (err) {
+    showToast("Server error -    ", "error");
+  }
+}
+
+
+// ==========================================
+// 4. حذف المقرر
+// ==========================================
+function deleteCourse(id) {
+  showConfirm("Are you sure you want to delete this course?", async function() {
+    const token = localStorage.getItem("token");
+    try {
+      const response = await fetch(`http://localhost:3000/api/courses/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        showToast("Course deleted successfully", "success");
+        fetchCourses(); 
+      } else {
+        showToast("Failed to delete course", "error");
+      }
+    } catch (err) {
+      showToast("Server error", "error");
+    }
+  });
+}
+
+// ==========================================
+// 5. تعديل المقرر 
+// ==========================================
+function enableEdit(id, element) {
+  const course = courses.find(c => c._id === id || c.id === id);
+  const currentTitle = course.title || course.name;
+  
+  element.innerHTML = `
+    <input 
+      type="text" 
+      id="editInput-${id}" 
+      value="${currentTitle}" 
+      class="edit-input" 
+      onblur="saveCourse('${id}')" 
+      onkeypress="handleKey(event, '${id}')" 
+      autofocus
+    >
+  `;
+}
+
+function handleKey(event, id) {
+  if (event.key === "Enter") saveCourse(id);
+}
+// ==========================================
+// 5. حفظ التعديل (محدثة لتطابق سيرفرك)
+// ==========================================
+async function saveCourse(id) {
+  const input = document.getElementById(`editInput-${id}`);
+  let newName = input.value.trim();
+  const course = courses.find(c => c._id === id || c.id === id);
+  const currentHours = course.hours || course.credits || 3;
+
+  if (!newName) {
+    showToast("Course name cannot be empty", "error");
+    render();
+    return;
+  }
+
+  if (isDuplicate(newName, id)) {
+    showToast("This course already exists!", "error");
+    render(); 
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+  try {
+    const response = await fetch(`http://localhost:3000/api/courses/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      // 💡 التعديل هنا أيضاً للحفاظ على البيانات عند التعديل
+      body: JSON.stringify({ name: newName, hours: currentHours })
+    });
+
+    if (response.ok) {
+      showToast("Course updated successfully", "success");
+      fetchCourses(); 
+    } else {
+      showToast("Update failed", "error");
+      render();
+    }
+  } catch (err) {
+    showToast("Server error", "error");
+    render();
+  }
+}
+// ==========================================
+// 6. عرض المقررات في الجدول
+// ==========================================
+function render() {
+  const tbody = document.querySelector("#table tbody");
+  tbody.innerHTML = "";
+
+  if (courses.length === 0) {
+    document.getElementById("emptyMsg").style.display = "block";
+    document.querySelector("#table thead").style.display = "none";
+  } else {
+    document.getElementById("emptyMsg").style.display = "none";
+    document.querySelector("#table thead").style.display = "";
+  }
+
+  courses.forEach((c, index) => {
+    const courseId = c._id || c.id; 
+    const courseTitle = c.title || c.name;
+    const courseCredits = c.credits || c.hours;
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${index + 1}</td>
+      <td>
+        <span 
+          class="editable-course" 
+          ondblclick="enableEdit('${courseId}', this)" 
+          title="Double click to edit"
+        >
+          ${courseTitle}
+        </span>
+      </td>
+      <td>${courseCredits}h</td>
+      <td>
+        <button class="btn-delete" onclick="deleteCourse('${courseId}')">
+          🗑 Delete
+        </button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById("totalCourses").innerText = courses.length;
+  const totalHours = courses.reduce((sum, c) => sum + (c.credits || c.hours || 0), 0);
+  document.getElementById("totalHours").innerText = totalHours + "h";
+}
+
+// ==========================================
+// 7. دوال النوافذ المنبثقة (Modal)
+// ==========================================
+let modalCallback = null;
+function showConfirm(message, callback) {
+  document.getElementById("modalMessage").textContent = message;
+  document.getElementById("confirmModal").classList.add("active");
+  document.getElementById("confirmBtn").onclick = function() {
+    closeModal();
+    callback();
+  };
+}
+
+function closeModal() {
+  document.getElementById("confirmModal").classList.remove("active");
+  modalCallback = null;
+}
+
+// ==========================================
+// 8. تشغيل الدوال تلقائياً
+// ==========================================
+window.onload = () => {
+  if(typeof loadUserProfile === 'function') loadUserProfile(); 
+  fetchCourses(); 
+};
+</script>
+
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <p id="modalMessage">Are you sure?</p>
+    <div class="modal-buttons">
+      <button class="modal-btn-cancel" onclick="closeModal()">Cancel</button>
+<button class="modal-btn-confirm" id="confirmBtn">OK</button>  
+  </div>
+  </div>
+</div>
+</body>
+</html>

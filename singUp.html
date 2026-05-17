@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login & Sign Up</title>
+<link rel="stylesheet" href="styleLogin.css">
+</head>
+<body>
+
+<div class="container" id="main-container">
+  <input type="checkbox" id="toggle">
+
+  <div class="form-box login">
+    <h2>Login</h2>
+    <input type="text" id="login-Email" placeholder="Email" required>
+    <input type="password" id="login-password" placeholder="Password" required>
+    <button id="loginBtn">Login</button>
+    <p>
+      Don't have an account?
+      <label for="toggle">Sign Up</label>
+    </p>
+  </div>
+
+  <div class="form-box signup">
+    <h2>Sign Up</h2>
+    <input type="text" id="reg-username" placeholder="Username" required>
+    <input type="email" id="reg-email" placeholder="Email" required>
+    <input type="tel" id="reg-phone" placeholder="Phone Number" required>
+    <input type="password" id="reg-password" placeholder="Password" required>
+    <button id="registerBtn">Register</button>
+    <p>
+      Already have an account?
+      <label for="toggle">Login</label>
+    </p>
+  </div>
+
+  <div class="side">
+    <div class="text signup-text">
+      <h2>HELLO FRIEND!</h2>
+      <p>Create your account and start your journey.</p>
+    </div>
+    <div class="text login-text">
+      <h2>WELCOME BACK!</h2>
+      <p>We are happy to see you again.</p>
+    </div>
+    
+  </div>
+<script>
+
+// --- 1. دالة الإشعارات الأنيقة (التي تدعم الألوان) ---
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.classList.add("show"); }, 100);
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => { toast.remove(); }, 300);
+  }, 3000);
+}
+
+// --- 2. دوال التحقق الذكية التي أضفتِها أنتِ ---
+function isValidEmail(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidPhone(phone){
+  return /^05\d{8}$/.test(phone);
+}
+
+// --- 3. كود التسجيل (Register) المتصل بالسيرفر ---
+document.getElementById('registerBtn').addEventListener('click', async function() {
+  const name = document.getElementById('reg-username').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
+  const password = document.getElementById('reg-password').value;
+
+  // شروط التحقق الخاصة بكِ
+  if(!name || !email || !phone || !password){
+    showToast("Please fill in all fields", "error");
+    return;
+  }
+  if(!isValidEmail(email)){
+    showToast("Invalid email address", "error");
+    return;
+  }
+  if(!isValidPhone(phone)){
+    showToast("Phone number must start with 05 and be 10 digits", "error");
+    return;
+  }
+
+  try {
+    // الاتصال بقاعدة البيانات الحقيقية
+    const response = await fetch('http://localhost:3000/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }) 
+    });
+    
+    const data = await response.json();
+
+    if(response.ok) {
+       showToast("Registration successful! Please login now.", "success");
+       document.getElementById('toggle').checked = false; // تحويل لصفحة الدخول
+    } else {
+       showToast(data.error || "Registration failed!", "error");
+    }
+  } catch (err) {
+    showToast("Server error! Make sure backend is running.", "error");
+  }
+});
+
+// --- 4. كود تسجيل الدخول (Login) المتصل بالسيرفر ---
+document.getElementById('loginBtn').addEventListener('click', async function() {
+  const email = document.getElementById('login-Email').value.trim(); 
+  const password = document.getElementById('login-password').value.trim();
+
+  if(!email || !password){
+    showToast("Please fill all fields!", "error");
+    return;
+  }
+
+  try {
+    // الاتصال بقاعدة البيانات الحقيقية
+    const response = await fetch('http://localhost:3000/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const data = await response.json();
+
+    if(response.ok) {
+       // حفظ التوكن (مهم جداً لربط باقي الصفحات)
+       localStorage.setItem("token", data.token);
+       localStorage.setItem("loggedInUser", data.user ? data.user.name : email.split('@'));
+       
+       showWelcome(data.user ? data.user.name : email.split('@'), "Login successful! Redirecting...");
+    } else {
+       showToast(data.error || "Incorrect username or password", "error");
+    }
+  } catch (err) {
+    showToast("Server error! Make sure backend is running.", "error");
+  }
+});
+
+// --- 5. دالة الترحيب والانتقال ---
+function showWelcome(username, message){
+  const container = document.getElementById('main-container');
+  container.innerHTML = `
+    <div class="success-page">
+      <h1>Welcome, ${username} 🎉</h1>
+      <p>${message}</p>
+    </div>
+  `;
+  setTimeout(() => { window.location.href = "dashboard.html"; }, 3000);
+}
+</script>
+
+
+
+</body>
+</html>
